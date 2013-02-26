@@ -1,38 +1,47 @@
 #!/usr/bin/python
 
+# system
 from collections import defaultdict
-
 import pdb
+import pprint
 import sys
+import time
 import traceback
 
+# pypi
 from splinter import Browser
+
+# local
 import user as userdata
 
 
+pp = pprint.PrettyPrinter(indent=4)
+
 base_url = 'http://www.hourlyrevshare.net'
 action_path = dict(
-    login = "index.php?p=login"
+    login = "index.php?p=login",
+    buy_shares = 'index.php?p=buy_shares'
 )
 
 def url_for_action(action):
     return "{0}/{1}".format(base_url,action_path[action])
 
+pay_via = dict(
+    stp='1',
+    pm='5',
+    lr='6',
+    egopay='10'
+)
 
 class Entry(object):
-
-    @staticmethod
-    def mystyle(url):
-        return "singlehood" in url
 
     def __init__(self, user, browser, url):
         self.user=user
         self.browser=browser
         self.url=url
-        self.email_name_attribute = "data[GiveawayEntry][email]"
 
-    def submit_contact_info(self):
-        button = self.browser.find_by_xpath('//*[@class="submit button"]')
+    def click_submit_button(self):
+        button = self.browser.find_by_xpath('//*[@type="submit"]')
         button.click()
 
     def login(self):
@@ -41,7 +50,6 @@ class Entry(object):
         button = self.browser.find_by_xpath('//*[@type="submit"]')
         print "Button: {0}".format(button)
         button.click()
-
 
     def extract_e_currencies(self):
         trs = self.browser.find_by_tag('tr')
@@ -54,59 +62,42 @@ class Entry(object):
             3 : 'lr',
             4 : 'egopay'
         }
-        stats = dict((v, dict(balance=None,action=None)) for k,v in index_to_merchant.iteritems())
+        self.stats = dict(
+            (v, dict(balance=None,action=None))
+            for k,v in index_to_merchant.iteritems()
+        )
         for tr in trs:
             tds = tr.find_by_tag('td')
             if len(tds) == 6:
                 index += 1
                 if index in desired_indices:
                     m = index_to_merchant[index]
-                    stats[m]['balance'] = tds[2].value
-                    stats[m]['action'] = tds[5].value
-        print stats
+                    self.stats[m]['balance'] = float(tds[2].value[1::])
 
-
-    def enter_email(self):
-        self._enter_email()
-        self.click_email_submit()
-
-    def enter_contact_info(self):
-        for k, v in self.user.items():
-            if k == 'state': continue
-            field_name = "data[GiveawayEntry][{0}]".format(k)
-            if k == 'address' or k == 'city' or k == 'zip':
-                field_name = "data[GiveawayEntryAddress][{0}]".format(k)
-            self.browser.fill(field_name, v)
-        e = self.browser.find_by_xpath(
-            '//*[@value="{0}"]'.format(self.user['state'])
+    def compound(self, processor, amount):
+        # Click Buy Shares
+        url = action_path['buy_shares']
+        print "URL to buy share: {0}".format(url)
+        self.browser.visit(url_for_action('buy_shares'))
+        button = self.browser.find_by_xpath(
+            '//input[@value="1"]'
         )
-        e._element.click()
-        self.submit_contact_info()
+        button.click()
+        self.click_submit_button()
 
-    def confirm_info(self):
-        self.browser.find_by_xpath('//*[@class="button button-yes"]').click()
+        # Fill in amount of shares to buy
+        shares = str(int(amount))
+        self.browser.fill('units', shares)
 
-    def find_accept_button(self):
-        return self.browser.find_by_xpath('//*[@class="button"]').click()
-
-    def accept_terms(self):
-        button = self.find_accept_button()
+        # Click Site/Cash Balance
+        button = self.browser.find_by_id('pay_via_0')
         button.click()
 
+        # Choose processor
+        self.browser.select('paypro', pay_via[processor])
 
-    def enter_contest(self):
-        print "\tEntering contest {0}".format(self.url)
-        self.browser.visit(self.url)
-        self.enter_email()
-        self.enter_contact_info()
-        self.confirm_info()
-        self.accept_terms()
+        self.click_submit_button()
 
-
-
-def different_browser_flow(url):
-    strs = "500-happy hummus kenra stiletto lillian chicco chanel anolon".split()
-    return any(s in url for s in strs)
 
 with Browser() as browser:
 
@@ -118,3 +109,12 @@ with Browser() as browser:
         e = Entry(user, browser, '')
         e.login()
         e.extract_e_currencies()
+        pp.pprint(e.stats)
+        for processor,pd in e.stats.items():
+            balance = pd['balance']
+            print "Processor: {0} has {1}".format(processor,balance)
+            if balance >= 5:
+                print "\tCompounding"
+                e.compound(processor, balance)
+
+    time.sleep(60)
