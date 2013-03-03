@@ -44,16 +44,20 @@ class Entry(object):
         button = self.browser.find_by_xpath('//*[@type="submit"]')
         button.click()
 
+    def wait_for_captcha_solution(self):
+        browser.visit(base_url)
+        time.sleep(15)
+        self.click_submit_button()
+
     def login(self):
+        browser.visit(url_for_action('login'))
         self.browser.fill('user', self.user['username'])
         self.browser.fill('pass', self.user['password'])
-        button = self.browser.find_by_xpath('//*[@type="submit"]')
-        print "Button: {0}".format(button)
-        button.click()
+        self.click_submit_button()
 
     def extract_e_currencies(self):
         trs = self.browser.find_by_tag('tr')
-        print "tbody: {0}".format(trs)
+        #print "tbody: {0}".format(trs)
 
         desired_indices = (1,3,4)
         index = -1
@@ -101,12 +105,9 @@ class Entry(object):
 
 with Browser() as browser:
 
-    initial_url = url_for_action('login')
-    print initial_url
-    browser.visit(initial_url)
-
     for user in userdata.users:
         e = Entry(user, browser, '')
+        e.wait_for_captcha_solution()
         e.login()
         e.extract_e_currencies()
         pp.pprint(e.stats)
@@ -117,4 +118,4 @@ with Browser() as browser:
                 print "\tCompounding"
                 e.compound(processor, balance)
 
-    time.sleep(60)
+    time.sleep(20)
