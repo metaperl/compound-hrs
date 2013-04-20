@@ -114,8 +114,14 @@ with Browser() as browser:
         for processor,pd in e.stats.items():
             balance = pd['balance']
             print "Processor: {0} has {1}".format(processor,balance)
+
+            if processor == 'egopay':
+                #print "\tSkipping"
+                #continue
+                pass
+
             if balance >= 5:
                 print "\tCompounding"
                 e.compound(processor, balance)
-
-    time.sleep(20)
+    print "Compounding complete...."
+    while True: continue
